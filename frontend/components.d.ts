@@ -211,6 +211,7 @@ declare module 'vue' {
     OutboundCallIcon: typeof import('./src/components/Icons/OutboundCallIcon.vue')['default']
     Password: typeof import('./src/components/Controls/Password.vue')['default']
     PauseIcon: typeof import('./src/components/Icons/PauseIcon.vue')['default']
+    PersonModal: typeof import('./src/components/Modals/PersonModal.vue')['default']
     PhoneIcon: typeof import('./src/components/Icons/PhoneIcon.vue')['default']
     PinIcon: typeof import('./src/components/Icons/PinIcon.vue')['default']
     PlaybackSpeedIcon: typeof import('./src/components/Icons/PlaybackSpeedIcon.vue')['default']

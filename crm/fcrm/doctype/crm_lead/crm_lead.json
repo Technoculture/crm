@@ -18,12 +18,17 @@
   "job_title",
   "source",
   "lead_owner",
+  "column_break_details",
+  "buy_mode",
+  "biomarkers_section",
+  "biomarkers",
   "person_tab",
   "salutation",
   "first_name",
   "last_name",
   "email",
   "mobile_no",
+  "persons_tab",
   "contacts_tab",
   "contacts",
   "organization_tab",
@@ -215,9 +220,35 @@
    "label": "Converted"
   },
   {
+   "fieldname": "column_break_details",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "buy_mode",
+   "fieldtype": "Link",
+   "label": "Buy Mode",
+   "options": "CRM Buy Mode"
+  },
+  {
+   "fieldname": "biomarkers_section",
+   "fieldtype": "Section Break",
+   "label": "Biomarkers"
+  },
+  {
+   "fieldname": "biomarkers",
+   "fieldtype": "Table",
+   "label": "Biomarkers",
+   "options": "CRM Lead Biomarker"
+  },
+  {
    "fieldname": "person_tab",
    "fieldtype": "Tab Break",
    "label": "Person"
+  },
+  {
+   "fieldname": "persons_tab",
+   "fieldtype": "Tab Break",
+   "label": "Persons"
   },
   {
    "fieldname": "contacts_tab",

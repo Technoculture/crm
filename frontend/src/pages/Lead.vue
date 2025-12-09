@@ -206,6 +206,14 @@
                 </template>
               </Link>
             </div>
+            <div v-if="section.name == 'persons_section'" class="pr-2">
+              <Button
+                class="h-7 px-3"
+                variant="ghost"
+                icon="plus"
+                @click="openPersonModal()"
+              />
+            </div>
           </template>
           <template #default="{ section }">
             <div
@@ -315,6 +323,127 @@
                 {{ __('No contacts added') }}
               </div>
             </div>
+            <!-- Persons Section -->
+            <div
+              v-if="section.name == 'persons_section'"
+              class="persons-area"
+            >
+              <div
+                v-if="leadPersons?.loading && leadPersons?.data?.length == 0"
+                class="flex min-h-20 flex-1 items-center justify-center gap-3 text-base text-ink-gray-4"
+              >
+                <LoadingIndicator class="h-4 w-4" />
+                <span>{{ __('Loading...') }}</span>
+              </div>
+              <div
+                v-else-if="leadPersons?.data?.length"
+                v-for="(person, i) in leadPersons.data"
+                :key="person.name"
+              >
+                <div class="px-2 pb-2.5" :class="[i == 0 ? 'pt-5' : 'pt-2.5']">
+                  <Section :opened="person.opened">
+                    <template #header="{ opened, toggle }">
+                      <div
+                        class="flex cursor-pointer items-center justify-between gap-2 pr-1 text-base leading-5 text-ink-gray-7"
+                      >
+                        <div
+                          class="flex h-7 items-center gap-2 truncate"
+                          @click="toggle()"
+                        >
+                          <Avatar
+                            :label="person.full_name"
+                            :image="person.image"
+                            size="md"
+                          />
+                          <div class="truncate">
+                            {{ person.full_name }}
+                          </div>
+                          <Badge
+                            v-if="person.status"
+                            class="ml-1"
+                            variant="subtle"
+                            :label="person.status"
+                            :theme="person.status_color || 'gray'"
+                          />
+                          <Badge
+                            v-if="person.is_primary"
+                            class="ml-1"
+                            variant="outline"
+                            :label="__('Primary')"
+                            theme="green"
+                          />
+                        </div>
+                        <div class="flex items-center">
+                          <Dropdown :options="personOptions(person)">
+                            <Button
+                              icon="more-horizontal"
+                              class="text-ink-gray-5"
+                              variant="ghost"
+                            />
+                          </Dropdown>
+                          <Button
+                            variant="ghost"
+                            class="transition-all duration-300 ease-in-out"
+                            :class="{ 'rotate-90': opened }"
+                            icon="chevron-right"
+                            @click="toggle()"
+                          />
+                        </div>
+                      </div>
+                    </template>
+                    <div class="flex flex-col gap-1.5 text-base pt-3">
+                      <div v-if="person.job_title" class="flex items-center gap-3 px-1 py-1 text-ink-gray-6 text-sm">
+                        <span class="font-medium">{{ person.job_title }}</span>
+                        <span v-if="person.department">• {{ person.department }}</span>
+                      </div>
+                      <div
+                        v-if="person.primary_email"
+                        class="flex items-center gap-3 px-1 py-1.5 text-ink-gray-8"
+                      >
+                        <Email2Icon class="h-4 w-4" />
+                        {{ person.primary_email }}
+                        <span v-if="person.emails?.length > 1" class="text-xs text-ink-gray-5">
+                          (+{{ person.emails.length - 1 }} more)
+                        </span>
+                      </div>
+                      <div
+                        v-if="person.primary_phone"
+                        class="flex items-center gap-3 px-1 py-1.5 text-ink-gray-8"
+                      >
+                        <PhoneIcon class="h-4 w-4" />
+                        {{ person.primary_phone }}
+                        <span v-if="person.phones?.length > 1" class="text-xs text-ink-gray-5">
+                          (+{{ person.phones.length - 1 }} more)
+                        </span>
+                      </div>
+                      <div
+                        v-if="person.degrees?.length"
+                        class="flex items-center gap-3 px-1 py-1.5 text-ink-gray-8"
+                      >
+                        <FeatherIcon name="award" class="h-4 w-4" />
+                        <span>{{ person.degrees.map(d => d.degree).join(', ') }}</span>
+                      </div>
+                      <div
+                        v-if="!person.primary_email && !person.primary_phone"
+                        class="flex items-center justify-center py-4 text-sm text-ink-gray-4"
+                      >
+                        {{ __('No contact details added') }}
+                      </div>
+                    </div>
+                  </Section>
+                </div>
+                <div
+                  v-if="i != leadPersons.data.length - 1"
+                  class="mx-2 h-px border-t border-outline-gray-modals"
+                />
+              </div>
+              <div
+                v-else
+                class="flex h-20 items-center justify-center text-base text-ink-gray-5"
+              >
+                {{ __('No persons added') }}
+              </div>
+            </div>
           </template>
         </SidePanelLayout>
       </div>
@@ -338,6 +467,14 @@
       redirect: false,
       afterInsert: (_doc) => addContact(_doc.name),
     }"
+  />
+  <PersonModal
+    v-if="showPersonModal"
+    v-model="showPersonModal"
+    :person="_person"
+    :lead="leadId"
+    @personAdded="leadPersons.reload()"
+    @personUpdated="leadPersons.reload()"
   />
   <FilesUploader
     v-model="showFilesUploader"
@@ -388,8 +525,10 @@ import SLASection from '@/components/SLASection.vue'
 import CustomActions from '@/components/CustomActions.vue'
 import ConvertToDealModal from '@/components/Modals/ConvertToDealModal.vue'
 import ContactModal from '@/components/Modals/ContactModal.vue'
+import PersonModal from '@/components/Modals/PersonModal.vue'
 import Link from '@/components/Controls/Link.vue'
 import Section from '@/components/Section.vue'
+import { FeatherIcon } from 'frappe-ui'
 import {
   openWebsite,
   setupCustomizations,
@@ -443,7 +582,9 @@ const showDeleteLinkedDocModal = ref(false)
 const showConvertToDealModal = ref(false)
 const showFilesUploader = ref(false)
 const showContactModal = ref(false)
+const showPersonModal = ref(false)
 const _contact = ref({})
+const _person = ref({})
 
 const { triggerOnChange, assignees, permissions, document, scripts, error } = useDocument(
   'CRM Lead',
@@ -675,6 +816,72 @@ function triggerCall() {
   }
 
   makeCall(mobile_no)
+}
+
+// Lead persons management
+const leadPersons = createResource({
+  url: 'crm.fcrm.doctype.crm_lead_person.crm_lead_person.get_lead_persons',
+  params: { lead: props.leadId },
+  cache: ['lead_persons', props.leadId],
+  transform: (data) => {
+    data.forEach((person) => {
+      person.opened = false
+    })
+    return data
+  },
+})
+
+if (!leadPersons.data) leadPersons.fetch()
+
+function personOptions(person) {
+  let options = [
+    {
+      label: __('Edit'),
+      icon: 'edit',
+      onClick: () => openPersonModal(person),
+    },
+    {
+      label: __('Delete'),
+      icon: 'trash-2',
+      onClick: () => deletePerson(person.name),
+    },
+  ]
+
+  if (!person.is_primary) {
+    options.push({
+      label: __('Set as Primary'),
+      icon: h(SuccessIcon, { class: 'h-4 w-4' }),
+      onClick: () => setPrimaryPerson(person.name),
+    })
+  }
+
+  return options
+}
+
+function openPersonModal(person = null) {
+  _person.value = person || {}
+  showPersonModal.value = true
+}
+
+async function deletePerson(personName) {
+  let d = await call('crm.fcrm.doctype.crm_lead_person.crm_lead_person.delete_person', {
+    person_name: personName,
+  })
+  if (d) {
+    leadPersons.reload()
+    toast.success(__('Person deleted'))
+  }
+}
+
+async function setPrimaryPerson(personName) {
+  let d = await call('crm.fcrm.doctype.crm_lead_person.crm_lead_person.set_primary_person', {
+    lead: props.leadId,
+    person_name: personName,
+  })
+  if (d) {
+    leadPersons.reload()
+    toast.success(__('Primary person set'))
+  }
 }
 
 async function triggerStatusChange(value) {

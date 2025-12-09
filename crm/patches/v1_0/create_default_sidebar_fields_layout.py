@@ -44,6 +44,9 @@ def create_doctype_fields_layout(doctype):
 			if field.fieldname == "contacts_tab":
 				sections[field.fieldname]["editable"] = False
 				sections[field.fieldname]["contacts"] = []
+			# Handle persons_tab for CRM Lead
+			if field.fieldname == "persons_tab":
+				sections[field.fieldname]["editable"] = False
 		else:
 			section_fields.append(field.fieldname)
 
@@ -52,6 +55,10 @@ def create_doctype_fields_layout(doctype):
 		# Handle contacts_tab for both CRM Lead and CRM Deal
 		if section == "contacts_tab":
 			sections[section]["name"] = "contacts_section"
+			sections[section].pop("fields", None)
+		# Handle persons_tab for CRM Lead
+		if section == "persons_tab":
+			sections[section]["name"] = "persons_section"
 			sections[section].pop("fields", None)
 		section_fields.append(sections[section])
 
