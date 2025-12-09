@@ -440,15 +440,17 @@ async function fieldChange(value, df) {
 
 function parsedSection(section, editButtonAdded) {
   let isContactSection = section.name == 'contacts_section'
+  let isPersonsSection = section.name == 'persons_section'
+  let isCustomSection = isContactSection || isPersonsSection
   section.showEditButton = !(
     isMobileView.value ||
     !isManager() ||
-    isContactSection ||
+    isCustomSection ||
     editButtonAdded
   )
 
   section.visible =
-    isContactSection ||
+    isCustomSection ||
     section.columns?.[0].fields.filter((f) => f.visible).length
 
   return section

@@ -16,6 +16,7 @@ def after_install(force=False):
 	add_default_lead_statuses()
 	add_default_deal_statuses()
 	add_default_communication_statuses()
+	add_default_person_statuses()
 	add_default_fields_layout(force)
 	add_property_setter()
 	add_email_template_custom_fields()
@@ -140,6 +141,50 @@ def add_default_communication_statuses():
 		doc.insert()
 
 
+def add_default_person_statuses():
+	"""Add default person statuses for CRM Lead Person"""
+	statuses = {
+		"Active": {
+			"color": "green",
+			"position": 1,
+		},
+		"Inactive": {
+			"color": "gray",
+			"position": 2,
+		},
+		"Decision Maker": {
+			"color": "blue",
+			"position": 3,
+		},
+		"Influencer": {
+			"color": "purple",
+			"position": 4,
+		},
+		"Gatekeeper": {
+			"color": "orange",
+			"position": 5,
+		},
+		"Champion": {
+			"color": "green",
+			"position": 6,
+		},
+		"End User": {
+			"color": "cyan",
+			"position": 7,
+		},
+	}
+
+	for status in statuses:
+		if frappe.db.exists("CRM Person Status", status):
+			continue
+
+		doc = frappe.new_doc("CRM Person Status")
+		doc.status_name = status
+		doc.color = statuses[status]["color"]
+		doc.position = statuses[status]["position"]
+		doc.insert()
+
+
 def add_default_fields_layout(force=False):
 	quick_entry_layouts = {
 		"CRM Lead-Quick Entry": {
@@ -171,7 +216,7 @@ def add_default_fields_layout(force=False):
 	sidebar_fields_layouts = {
 		"CRM Lead-Side Panel": {
 			"doctype": "CRM Lead",
-			"layout": '[{"label": "Details", "name": "details_section", "opened": true, "columns": [{"name": "column_kl92", "fields": ["organization", "website", "territory", "industry", "job_title", "source", "lead_owner"]}]}, {"label": "Person", "name": "person_section", "opened": true, "columns": [{"name": "column_XmW2", "fields": ["salutation", "first_name", "last_name", "email", "mobile_no"]}]}]',
+			"layout": '[{"label": "Details", "name": "details_section", "opened": true, "columns": [{"name": "column_kl92", "fields": ["organization", "website", "territory", "industry", "job_title", "source", "lead_owner", "buy_mode"]}]}, {"label": "Person", "name": "person_section", "opened": true, "columns": [{"name": "column_XmW2", "fields": ["salutation", "first_name", "last_name", "email", "mobile_no"]}]}, {"label": "Persons", "name": "persons_section", "opened": true, "editable": false}, {"label": "Contacts", "name": "contacts_section", "opened": true, "editable": false, "contacts": []}]',
 		},
 		"CRM Deal-Side Panel": {
 			"doctype": "CRM Deal",
