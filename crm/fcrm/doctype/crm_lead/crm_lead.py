@@ -20,6 +20,7 @@ class CRMLead(Document):
 	from typing import TYPE_CHECKING
 
 	if TYPE_CHECKING:
+		from crm.fcrm.doctype.crm_contacts.crm_contacts import CRMContacts
 		from crm.fcrm.doctype.crm_products.crm_products import CRMProducts
 		from crm.fcrm.doctype.crm_rolling_response_time.crm_rolling_response_time import CRMRollingResponseTime
 		from crm.fcrm.doctype.crm_status_change_log.crm_status_change_log import CRMStatusChangeLog
@@ -27,6 +28,7 @@ class CRMLead(Document):
 
 		annual_revenue: DF.Currency
 		communication_status: DF.Link | None
+		contacts: DF.Table[CRMContacts]
 		converted: DF.Check
 		email: DF.Data | None
 		facebook_form_id: DF.Data | None
@@ -73,6 +75,8 @@ class CRMLead(Document):
 		self.set_lead_name()
 		self.set_title()
 		self.validate_email()
+		self.set_primary_contact()
+		self.set_primary_email_mobile_no()
 		if not self.is_new() and self.has_value_changed("lead_owner") and self.lead_owner:
 			self.share_with_agent(self.lead_owner)
 			self.assign_agent(self.lead_owner)
@@ -85,6 +89,37 @@ class CRMLead(Document):
 
 	def before_save(self):
 		self.apply_sla()
+
+	def set_primary_contact(self, contact=None):
+		if not self.contacts:
+			return
+
+		if not contact and len(self.contacts) == 1:
+			self.contacts[0].is_primary = 1
+		elif contact:
+			for d in self.contacts:
+				if d.contact == contact:
+					d.is_primary = 1
+				else:
+					d.is_primary = 0
+
+	def set_primary_email_mobile_no(self):
+		if not self.contacts:
+			return
+
+		if len([contact for contact in self.contacts if contact.is_primary]) > 1:
+			frappe.throw(_("Only one {0} can be set as primary.").format(frappe.bold("Contact")))
+
+		for d in self.contacts:
+			if d.is_primary == 1:
+				# Update lead's email and mobile_no from primary contact
+				if d.email:
+					self.email = d.email.strip()
+				if d.mobile_no:
+					self.mobile_no = d.mobile_no.strip()
+				if d.phone:
+					self.phone = d.phone.strip()
+				break
 
 	def set_full_name(self):
 		if self.first_name:
@@ -302,6 +337,7 @@ class CRMLead(Document):
 			"communication_status",
 			"sla_creation",
 			"status_change_log",
+			"contacts",
 		]
 
 		for field in self.meta.fields:
@@ -320,10 +356,22 @@ class CRMLead(Document):
 				else:
 					new_deal.update({fieldname: self.get(field.fieldname)})
 
+		# Handle contacts - transfer all contacts from lead to deal
+		deal_contacts = []
+		if self.contacts:
+			for lead_contact in self.contacts:
+				deal_contacts.append({
+					"contact": lead_contact.contact,
+					"is_primary": lead_contact.is_primary
+				})
+		elif contact:
+			# Fallback to single contact if no contacts table entries
+			deal_contacts.append({"contact": contact, "is_primary": 1})
+
 		new_deal.update(
 			{
 				"lead": self.name,
-				"contacts": [{"contact": contact}],
+				"contacts": deal_contacts,
 			}
 		)
 

@@ -122,12 +122,7 @@
                   v-if="callEnabled"
                   :tooltip="__('Make a call')"
                   :icon="PhoneIcon"
-                  @click="
-                    () =>
-                      doc.mobile_no
-                        ? makeCall(doc.mobile_no)
-                        : toast.error(__('No phone number set'))
-                  "
+                  @click="triggerCall"
                 />
 
                 <Button
@@ -178,11 +173,150 @@
       >
         <SidePanelLayout
           :sections="sections.data"
+          :addContact="addContact"
           doctype="CRM Lead"
           :docname="leadId"
           @reload="sections.reload"
           @afterFieldChange="reloadAssignees"
-        />
+        >
+          <template #actions="{ section }">
+            <div v-if="section.name == 'contacts_section'" class="pr-2">
+              <Link
+                value=""
+                doctype="Contact"
+                @change="(e) => addContact(e)"
+                :onCreate="
+                  (value, close) => {
+                    _contact = {
+                      first_name: value,
+                      company_name: doc.organization,
+                    }
+                    showContactModal = true
+                    close()
+                  }
+                "
+              >
+                <template #target="{ togglePopover }">
+                  <Button
+                    class="h-7 px-3"
+                    variant="ghost"
+                    icon="plus"
+                    @click="togglePopover()"
+                  />
+                </template>
+              </Link>
+            </div>
+          </template>
+          <template #default="{ section }">
+            <div
+              v-if="section.name == 'contacts_section'"
+              class="contacts-area"
+            >
+              <div
+                v-if="leadContacts?.loading && leadContacts?.data?.length == 0"
+                class="flex min-h-20 flex-1 items-center justify-center gap-3 text-base text-ink-gray-4"
+              >
+                <LoadingIndicator class="h-4 w-4" />
+                <span>{{ __('Loading...') }}</span>
+              </div>
+              <div
+                v-else-if="leadContacts?.data?.length"
+                v-for="(contact, i) in leadContacts.data"
+                :key="contact.name"
+              >
+                <div class="px-2 pb-2.5" :class="[i == 0 ? 'pt-5' : 'pt-2.5']">
+                  <Section :opened="contact.opened">
+                    <template #header="{ opened, toggle }">
+                      <div
+                        class="flex cursor-pointer items-center justify-between gap-2 pr-1 text-base leading-5 text-ink-gray-7"
+                      >
+                        <div
+                          class="flex h-7 items-center gap-2 truncate"
+                          @click="toggle()"
+                        >
+                          <Avatar
+                            :label="contact.full_name"
+                            :image="contact.image"
+                            size="md"
+                          />
+                          <div class="truncate">
+                            {{ contact.full_name }}
+                          </div>
+                          <Badge
+                            v-if="contact.is_primary"
+                            class="ml-2"
+                            variant="outline"
+                            :label="__('Primary')"
+                            theme="green"
+                          />
+                        </div>
+                        <div class="flex items-center">
+                          <Dropdown :options="contactOptions(contact)">
+                            <Button
+                              icon="more-horizontal"
+                              class="text-ink-gray-5"
+                              variant="ghost"
+                            />
+                          </Dropdown>
+                          <Button
+                            variant="ghost"
+                            :tooltip="__('View contact')"
+                            :icon="ArrowUpRightIcon"
+                            @click="
+                              router.push({
+                                name: 'Contact',
+                                params: { contactId: contact.name },
+                              })
+                            "
+                          />
+                          <Button
+                            variant="ghost"
+                            class="transition-all duration-300 ease-in-out"
+                            :class="{ 'rotate-90': opened }"
+                            icon="chevron-right"
+                            @click="toggle()"
+                          />
+                        </div>
+                      </div>
+                    </template>
+                    <div class="flex flex-col gap-1.5 text-base">
+                      <div
+                        v-if="contact.email"
+                        class="flex items-center gap-3 pb-1.5 pl-1 pt-4 text-ink-gray-8"
+                      >
+                        <Email2Icon class="h-4 w-4" />
+                        {{ contact.email }}
+                      </div>
+                      <div
+                        v-if="contact.mobile_no"
+                        class="flex items-center gap-3 p-1 py-1.5 text-ink-gray-8"
+                      >
+                        <PhoneIcon class="h-4 w-4" />
+                        {{ contact.mobile_no }}
+                      </div>
+                      <div
+                        v-if="!contact.email && !contact.mobile_no"
+                        class="flex items-center justify-center py-4 text-sm text-ink-gray-4"
+                      >
+                        {{ __('No details added') }}
+                      </div>
+                    </div>
+                  </Section>
+                </div>
+                <div
+                  v-if="i != leadContacts.data.length - 1"
+                  class="mx-2 h-px border-t border-outline-gray-modals"
+                />
+              </div>
+              <div
+                v-else
+                class="flex h-20 items-center justify-center text-base text-ink-gray-5"
+              >
+                {{ __('No contacts added') }}
+              </div>
+            </div>
+          </template>
+        </SidePanelLayout>
       </div>
     </Resizer>
   </div>
@@ -195,6 +329,15 @@
     v-if="showConvertToDealModal"
     v-model="showConvertToDealModal"
     :lead="doc"
+  />
+  <ContactModal
+    v-if="showContactModal"
+    v-model="showContactModal"
+    :contact="_contact"
+    :options="{
+      redirect: false,
+      afterInsert: (_doc) => addContact(_doc.name),
+    }"
   />
   <FilesUploader
     v-model="showFilesUploader"
@@ -220,6 +363,7 @@ import DeleteLinkedDocModal from '@/components/DeleteLinkedDocModal.vue'
 import ErrorPage from '@/components/ErrorPage.vue'
 import Icon from '@/components/Icon.vue'
 import Resizer from '@/components/Resizer.vue'
+import LoadingIndicator from '@/components/Icons/LoadingIndicator.vue'
 import ActivityIcon from '@/components/Icons/ActivityIcon.vue'
 import EmailIcon from '@/components/Icons/EmailIcon.vue'
 import Email2Icon from '@/components/Icons/Email2Icon.vue'
@@ -232,6 +376,8 @@ import WhatsAppIcon from '@/components/Icons/WhatsAppIcon.vue'
 import IndicatorIcon from '@/components/Icons/IndicatorIcon.vue'
 import CameraIcon from '@/components/Icons/CameraIcon.vue'
 import LinkIcon from '@/components/Icons/LinkIcon.vue'
+import ArrowUpRightIcon from '@/components/Icons/ArrowUpRightIcon.vue'
+import SuccessIcon from '@/components/Icons/SuccessIcon.vue'
 import AttachmentIcon from '@/components/Icons/AttachmentIcon.vue'
 import LayoutHeader from '@/components/LayoutHeader.vue'
 import Activities from '@/components/Activities/Activities.vue'
@@ -241,6 +387,9 @@ import SidePanelLayout from '@/components/SidePanelLayout.vue'
 import SLASection from '@/components/SLASection.vue'
 import CustomActions from '@/components/CustomActions.vue'
 import ConvertToDealModal from '@/components/Modals/ConvertToDealModal.vue'
+import ContactModal from '@/components/Modals/ContactModal.vue'
+import Link from '@/components/Controls/Link.vue'
+import Section from '@/components/Section.vue'
 import {
   openWebsite,
   setupCustomizations,
@@ -262,11 +411,12 @@ import {
   Avatar,
   Tabs,
   Breadcrumbs,
+  Badge,
   call,
   usePageMeta,
   toast,
 } from 'frappe-ui'
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, h } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useActiveTabManager } from '@/composables/useActiveTabManager'
 
@@ -292,6 +442,8 @@ const errorMessage = ref('')
 const showDeleteLinkedDocModal = ref(false)
 const showConvertToDealModal = ref(false)
 const showFilesUploader = ref(false)
+const showContactModal = ref(false)
+const _contact = ref({})
 
 const { triggerOnChange, assignees, permissions, document, scripts, error } = useDocument(
   'CRM Lead',
@@ -439,6 +591,91 @@ const sections = createResource({
   params: { doctype: 'CRM Lead' },
   auto: true,
 })
+
+// Lead contacts management
+const leadContacts = createResource({
+  url: 'crm.fcrm.doctype.crm_lead.api.get_lead_contacts',
+  params: { name: props.leadId },
+  cache: ['lead_contacts', props.leadId],
+  transform: (data) => {
+    data.forEach((contact) => {
+      contact.opened = false
+    })
+    return data
+  },
+})
+
+if (!leadContacts.data) leadContacts.fetch()
+
+function contactOptions(contact) {
+  let options = [
+    {
+      label: __('Remove'),
+      icon: 'trash-2',
+      onClick: () => removeContact(contact.name),
+    },
+  ]
+
+  if (!contact.is_primary) {
+    options.push({
+      label: __('Set as Primary Contact'),
+      icon: h(SuccessIcon, { class: 'h-4 w-4' }),
+      onClick: () => setPrimaryContact(contact.name),
+    })
+  }
+
+  return options
+}
+
+async function addContact(contact) {
+  if (leadContacts.data?.find((c) => c.name === contact)) {
+    toast.error(__('Contact already added'))
+    return
+  }
+
+  let d = await call('crm.fcrm.doctype.crm_lead.api.add_contact', {
+    lead: props.leadId,
+    contact,
+  })
+  if (d) {
+    leadContacts.reload()
+    toast.success(__('Contact added'))
+  }
+}
+
+async function removeContact(contact) {
+  let d = await call('crm.fcrm.doctype.crm_lead.api.remove_contact', {
+    lead: props.leadId,
+    contact,
+  })
+  if (d) {
+    leadContacts.reload()
+    toast.success(__('Contact removed'))
+  }
+}
+
+async function setPrimaryContact(contact) {
+  let d = await call('crm.fcrm.doctype.crm_lead.api.set_primary_contact', {
+    lead: props.leadId,
+    contact,
+  })
+  if (d) {
+    leadContacts.reload()
+    toast.success(__('Primary contact set'))
+  }
+}
+
+function triggerCall() {
+  let primaryContact = leadContacts.data?.find((c) => c.is_primary)
+  let mobile_no = primaryContact?.mobile_no || doc.value.mobile_no || null
+
+  if (!mobile_no) {
+    toast.error(__('No phone number set'))
+    return
+  }
+
+  makeCall(mobile_no)
+}
 
 async function triggerStatusChange(value) {
   await triggerOnChange('status', value)

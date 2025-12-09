@@ -24,6 +24,8 @@
   "last_name",
   "email",
   "mobile_no",
+  "contacts_tab",
+  "contacts",
   "organization_tab",
   "section_break_uixv",
   "naming_series",
@@ -216,6 +218,17 @@
    "fieldname": "person_tab",
    "fieldtype": "Tab Break",
    "label": "Person"
+  },
+  {
+   "fieldname": "contacts_tab",
+   "fieldtype": "Tab Break",
+   "label": "Contacts"
+  },
+  {
+   "fieldname": "contacts",
+   "fieldtype": "Table",
+   "label": "Contacts",
+   "options": "CRM Contacts"
   },
   {
    "fieldname": "details",

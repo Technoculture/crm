@@ -40,6 +40,7 @@ def create_doctype_fields_layout(doctype):
 				"opened": True,
 				"fields": [],
 			}
+			# Handle contacts_tab for both CRM Lead and CRM Deal
 			if field.fieldname == "contacts_tab":
 				sections[field.fieldname]["editable"] = False
 				sections[field.fieldname]["contacts"] = []
@@ -48,6 +49,7 @@ def create_doctype_fields_layout(doctype):
 
 	section_fields = []
 	for section in sections:
+		# Handle contacts_tab for both CRM Lead and CRM Deal
 		if section == "contacts_tab":
 			sections[section]["name"] = "contacts_section"
 			sections[section].pop("fields", None)
