@@ -74,6 +74,11 @@ const chartTypes = [
 const numberChart = ref('')
 const numberCharts = [
   { label: __('Total leads'), value: 'total_leads' },
+  { label: __('Total site visits'), value: 'total_site_visits' },
+  { label: __('Total outgoing calls'), value: 'total_outgoing_calls' },
+  { label: __('Total incoming calls'), value: 'total_incoming_calls' },
+  { label: __("Today's tasks"), value: 'todays_tasks' },
+  { label: __("Today's closed tasks"), value: 'todays_closed_tasks' },
   { label: __('Ongoing deals'), value: 'ongoing_deals' },
   { label: __('Avg ongoing deal value'), value: 'average_ongoing_deal_value' },
   { label: __('Won deals'), value: 'won_deals' },
