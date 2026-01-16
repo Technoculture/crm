@@ -275,6 +275,10 @@ const canChangeLeadOwner = computed(() => {
   if (isAdmin(session.user)) return true
   return ['Sales Manager', 'Sales Master Manager'].includes(role)
 })
+const canEditMobileNo = computed(() => {
+  const role = getUserRole(session.user)
+  return ['Sales Manager', 'Sales Master Manager'].includes(role)
+})
 
 watch(error, (err) => {
   if (err) {
@@ -427,6 +431,14 @@ function updateField(name, value) {
       __(
         'Only Admin or Sales Manager/Sales Master Manager can change the Lead Owner.',
       ),
+    )
+    return
+  }
+  const mobileNoFields =
+    name === 'mobile_no' || (Array.isArray(name) && name.includes('mobile_no'))
+  if (mobileNoFields && !canEditMobileNo.value) {
+    toast.error(
+      __('Only Sales Manager/Sales Master Manager can change the mobile number.'),
     )
     return
   }

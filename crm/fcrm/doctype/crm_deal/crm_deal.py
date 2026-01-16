@@ -79,6 +79,7 @@ class CRMDeal(Document):
 	def validate(self):
 		self.set_primary_contact()
 		self.set_primary_email_mobile_no()
+		self.validate_mobile_no_permissions()
 		if not self.is_new() and self.has_value_changed("deal_owner") and self.deal_owner:
 			self.share_with_agent(self.deal_owner)
 			self.assign_agent(self.deal_owner)
@@ -133,6 +134,18 @@ class CRMDeal(Document):
 			self.email = ""
 			self.mobile_no = ""
 			self.phone = ""
+
+	def validate_mobile_no_permissions(self):
+		if self.is_new() or not self.has_value_changed("mobile_no"):
+			return
+
+		allowed_roles = {"Sales Manager", "Sales Master Manager"}
+		user_roles = set(frappe.get_roles(frappe.session.user))
+		if not user_roles.intersection(allowed_roles):
+			frappe.throw(
+				_("Only Sales Manager/Sales Master Manager can change the mobile number."),
+				exc=frappe.PermissionError,
+			)
 
 	def assign_agent(self, agent):
 		if not agent:

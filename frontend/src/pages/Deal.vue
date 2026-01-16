@@ -368,6 +368,8 @@ import { getSettings } from '@/stores/settings'
 import { globalStore } from '@/stores/global'
 import { statusesStore } from '@/stores/statuses'
 import { getMeta } from '@/stores/meta'
+import { usersStore } from '@/stores/users'
+import { sessionStore } from '@/stores/session'
 import { useDocument } from '@/data/document'
 import { whatsappEnabled, callEnabled } from '@/composables/settings'
 import {
@@ -398,6 +400,8 @@ const { brand } = getSettings()
 const { $dialog, $socket, makeCall } = globalStore()
 const { statusOptions, getDealStatus } = statusesStore()
 const { doctypeMeta } = getMeta('CRM Deal')
+const session = sessionStore()
+const { getUserRole } = usersStore()
 
 const { updateOnboardingStep, isOnboardingStepsCompleted } =
   useOnboarding('frappecrm')
@@ -422,6 +426,10 @@ const { triggerOnChange, assignees, permissions, document, scripts, error } =
 const canDelete = computed(() => permissions.data?.permissions?.delete || false)
 
 const doc = computed(() => document.doc || {})
+const canEditMobileNo = computed(() => {
+  const role = getUserRole(session.user)
+  return ['Sales Manager', 'Sales Master Manager'].includes(role)
+})
 
 watch(error, (err) => {
   if (err) {
@@ -725,6 +733,14 @@ async function triggerStatusChange(value) {
 function updateField(name, value) {
   if (name == 'status' && !isOnboardingStepsCompleted.value) {
     updateOnboardingStep('change_deal_status')
+  }
+  const mobileNoFields =
+    name === 'mobile_no' || (Array.isArray(name) && name.includes('mobile_no'))
+  if (mobileNoFields && !canEditMobileNo.value) {
+    toast.error(
+      __('Only Sales Manager/Sales Master Manager can change the mobile number.'),
+    )
+    return
   }
 
   value = Array.isArray(name) ? '' : value
