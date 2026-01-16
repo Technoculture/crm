@@ -297,6 +297,8 @@ import { getSettings } from '@/stores/settings'
 import { globalStore } from '@/stores/global'
 import { statusesStore } from '@/stores/statuses'
 import { getMeta } from '@/stores/meta'
+import { usersStore } from '@/stores/users'
+import { sessionStore } from '@/stores/session'
 import { useDocument } from '@/data/document'
 import {
   whatsappEnabled,
@@ -321,6 +323,8 @@ const { brand } = getSettings()
 const { $dialog, $socket } = globalStore()
 const { statusOptions, getDealStatus } = statusesStore()
 const { doctypeMeta } = getMeta('CRM Deal')
+const session = sessionStore()
+const { getUserRole } = usersStore()
 const route = useRoute()
 const router = useRouter()
 
@@ -341,6 +345,10 @@ const { triggerOnChange, assignees, document, scripts, error } = useDocument(
 )
 
 const doc = computed(() => document.doc || {})
+const canEditMobileNo = computed(() => {
+  const role = getUserRole(session.user)
+  return ['Sales Manager', 'Sales Master Manager'].includes(role)
+})
 
 watch(error, (err) => {
   if (err) {
@@ -594,6 +602,14 @@ const dealContacts = createResource({
 })
 
 function updateField(name, value) {
+  const mobileNoFields =
+    name === 'mobile_no' || (Array.isArray(name) && name.includes('mobile_no'))
+  if (mobileNoFields && !canEditMobileNo.value) {
+    toast.error(
+      __('Only Sales Manager/Sales Master Manager can change the mobile number.'),
+    )
+    return
+  }
   value = Array.isArray(name) ? '' : value
   let oldValues = Array.isArray(name) ? {} : doc.value[name]
 

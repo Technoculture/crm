@@ -6,6 +6,9 @@ from frappe import _
 from crm.fcrm.doctype.crm_dashboard.crm_dashboard import create_default_manager_dashboard
 from crm.utils import sales_user_only
 
+CALL_CONNECTED_STATUSES = ("Completed", "In Progress")
+CLOSED_TASK_STATUSES = ("Done", "Completed", "Closed", "Cancelled", "Canceled")
+
 
 @frappe.whitelist()
 def reset_to_default():
@@ -40,6 +43,12 @@ def get_dashboard(from_date="", to_date="", user=""):
 		frappe.db.commit()
 	else:
 		layout = json.loads(frappe.db.get_value("CRM Dashboard", "Manager Dashboard", "layout") or "[]")
+
+	default_layout = json.loads(create_default_manager_dashboard())
+	existing_names = {l.get("name") for l in layout}
+	for default_item in default_layout:
+		if default_item.get("name") not in existing_names:
+			layout.append(default_item)
 
 	for l in layout:
 		method_name = f"get_{l['name']}"
@@ -131,6 +140,269 @@ def get_total_leads(from_date, to_date, user=""):
 		"value": current_month_leads,
 		"delta": delta_in_percentage,
 		"deltaSuffix": "%",
+	}
+
+
+def get_total_site_visits(from_date, to_date, user=""):
+	"""
+	Count leads marked as visited in the selected period.
+	"""
+	if not from_date or not to_date:
+		from_date = frappe.utils.get_first_day(from_date or frappe.utils.nowdate())
+		to_date = frappe.utils.get_last_day(to_date or frappe.utils.nowdate())
+
+	diff = frappe.utils.date_diff(to_date, from_date) or 1
+	params = {
+		"from_date": from_date,
+		"to_date": to_date,
+		"prev_from_date": frappe.utils.add_days(from_date, -diff),
+	}
+
+	conds = "custom_site_visit_status = 'Visited'"
+	if user:
+		conds += " AND lead_owner = %(user)s"
+		params["user"] = user
+
+	result = frappe.db.sql(
+		f"""
+		SELECT
+			COUNT(CASE
+				WHEN creation >= %(from_date)s AND creation < DATE_ADD(%(to_date)s, INTERVAL 1 DAY)
+				AND {conds}
+				THEN name END) as current_visits,
+			COUNT(CASE
+				WHEN creation >= %(prev_from_date)s AND creation < %(from_date)s
+				AND {conds}
+				THEN name END) as prev_visits
+		FROM `tabCRM Lead`
+		""",
+		params,
+		as_dict=1,
+	)
+
+	current = result[0].current_visits or 0
+	prev = result[0].prev_visits or 0
+	delta = ((current - prev) / prev * 100) if prev else 0
+
+	return {
+		"title": _("Total site visits"),
+		"tooltip": _("Leads marked as 'Visited' in the selected period"),
+		"value": current,
+		"delta": delta,
+		"deltaSuffix": "%",
+	}
+
+
+def get_total_outgoing_calls(from_date, to_date, user=""):
+	"""
+	Total outgoing calls with ability to focus on connected calls.
+	"""
+	if not from_date or not to_date:
+		from_date = frappe.utils.get_first_day(from_date or frappe.utils.nowdate())
+		to_date = frappe.utils.get_last_day(to_date or frappe.utils.nowdate())
+
+	diff = frappe.utils.date_diff(to_date, from_date) or 1
+	params = {
+		"from_date": from_date,
+		"to_date": to_date,
+		"prev_from_date": frappe.utils.add_days(from_date, -diff),
+		"type": "Outgoing",
+		"connected_statuses": CALL_CONNECTED_STATUSES,
+	}
+
+	conds = "type = %(type)s"
+	prev_conds = conds
+	if user:
+		conds += " AND caller = %(user)s"
+		prev_conds = conds
+		params["user"] = user
+
+	result = frappe.db.sql(
+		f"""
+		SELECT
+			COUNT(CASE
+				WHEN creation >= %(from_date)s AND creation < DATE_ADD(%(to_date)s, INTERVAL 1 DAY)
+				AND {conds}
+				THEN name END) AS current_total,
+			COUNT(CASE
+				WHEN creation >= %(prev_from_date)s AND creation < %(from_date)s
+				AND {prev_conds}
+				THEN name END) AS prev_total,
+			COUNT(CASE
+				WHEN creation >= %(from_date)s AND creation < DATE_ADD(%(to_date)s, INTERVAL 1 DAY)
+				AND {conds} AND status IN %(connected_statuses)s
+				THEN name END) AS current_connected
+		FROM `tabCRM Call Log`
+		""",
+		params,
+		as_dict=1,
+	)
+
+	current_total = result[0].current_total or 0
+	prev_total = result[0].prev_total or 0
+	current_connected = result[0].current_connected or 0
+	delta = ((current_total - prev_total) / prev_total * 100) if prev_total else 0
+
+	return {
+		"title": _("Total outgoing calls"),
+		"tooltip": _("Outgoing calls in the selected period"),
+		"value": current_total,
+		"delta": delta,
+		"deltaSuffix": "%",
+		"values": {
+			"all": current_total,
+			"connected": current_connected,
+		},
+		"filters": [
+			{"label": _("All"), "value": "all", "key": "all"},
+			{"label": _("Connected"), "value": "connected", "key": "connected"},
+		],
+	}
+
+
+def get_total_incoming_calls(from_date, to_date, user=""):
+	"""
+	Total incoming calls with ability to focus on received calls.
+	"""
+	if not from_date or not to_date:
+		from_date = frappe.utils.get_first_day(from_date or frappe.utils.nowdate())
+		to_date = frappe.utils.get_last_day(to_date or frappe.utils.nowdate())
+
+	diff = frappe.utils.date_diff(to_date, from_date) or 1
+	params = {
+		"from_date": from_date,
+		"to_date": to_date,
+		"prev_from_date": frappe.utils.add_days(from_date, -diff),
+		"type": "Incoming",
+		"received_statuses": CALL_CONNECTED_STATUSES,
+	}
+
+	conds = "type = %(type)s"
+	prev_conds = conds
+	if user:
+		conds += " AND receiver = %(user)s"
+		prev_conds = conds
+		params["user"] = user
+
+	result = frappe.db.sql(
+		f"""
+		SELECT
+			COUNT(CASE
+				WHEN creation >= %(from_date)s AND creation < DATE_ADD(%(to_date)s, INTERVAL 1 DAY)
+				AND {conds}
+				THEN name END) AS current_total,
+			COUNT(CASE
+				WHEN creation >= %(prev_from_date)s AND creation < %(from_date)s
+				AND {prev_conds}
+				THEN name END) AS prev_total,
+			COUNT(CASE
+				WHEN creation >= %(from_date)s AND creation < DATE_ADD(%(to_date)s, INTERVAL 1 DAY)
+				AND {conds} AND status IN %(received_statuses)s
+				THEN name END) AS current_received
+		FROM `tabCRM Call Log`
+		""",
+		params,
+		as_dict=1,
+	)
+
+	current_total = result[0].current_total or 0
+	prev_total = result[0].prev_total or 0
+	current_received = result[0].current_received or 0
+	delta = ((current_total - prev_total) / prev_total * 100) if prev_total else 0
+
+	return {
+		"title": _("Total incoming calls"),
+		"tooltip": _("Incoming calls in the selected period"),
+		"value": current_total,
+		"delta": delta,
+		"deltaSuffix": "%",
+		"values": {
+			"all": current_total,
+			"received": current_received,
+		},
+		"filters": [
+			{"label": _("All"), "value": "all", "key": "all"},
+			{"label": _("Received"), "value": "received", "key": "received"},
+		],
+	}
+
+
+def get_todays_tasks(from_date=None, to_date=None, user=""):
+	"""
+	Count tasks due today and highlight how many have notifications.
+	"""
+	today = frappe.utils.getdate(frappe.utils.nowdate())
+	start = frappe.utils.get_datetime(today)
+	end = frappe.utils.add_days(start, 1)
+
+	task_filters = {
+		"due_date": today,
+		"status": ["not in", CLOSED_TASK_STATUSES],
+	}
+	if user:
+		task_filters["assigned_to"] = user
+
+	task_names = frappe.get_all("CRM Task", filters=task_filters, pluck="name")
+	task_count = len(task_names)
+
+	notification_filters = {
+		"notification_type_doctype": "CRM Task",
+		"creation": ["between", [start, end]],
+	}
+	if task_names:
+		notification_filters["notification_type_doc"] = ["in", task_names]
+	if user:
+		notification_filters["to_user"] = user
+
+	notification_count = (
+		frappe.db.count("CRM Notification", filters=notification_filters) if task_names else 0
+	)
+
+	return {
+		"title": _("Today's tasks"),
+		"tooltip": _("Tasks due today"),
+		"value": task_count,
+		"values": {
+			"all": task_count,
+			"notified": notification_count,
+		},
+		"filters": [
+			{"label": _("All"), "value": "all", "key": "all"},
+			{"label": _("With notifications"), "value": "notified", "key": "notified"},
+		],
+	}
+
+
+def get_todays_closed_tasks(from_date=None, to_date=None, user=""):
+	"""
+	Count tasks closed today.
+	"""
+	today = frappe.utils.getdate(frappe.utils.nowdate())
+	start = frappe.utils.get_datetime(today)
+	end = frappe.utils.add_days(start, 1)
+
+	filters = {
+		"status": ["in", CLOSED_TASK_STATUSES],
+		"modified": ["between", [start, end]],
+	}
+	if user:
+		filters["assigned_to"] = user
+
+	current_closed = frappe.db.count("CRM Task", filters=filters)
+
+	prev_start = frappe.utils.add_days(start, -1)
+	prev_end = start
+	prev_filters = filters.copy()
+	prev_filters["modified"] = ["between", [prev_start, prev_end]]
+
+	previous_closed = frappe.db.count("CRM Task", filters=prev_filters)
+	delta = current_closed - previous_closed
+
+	return {
+		"title": _("Today's closed tasks"),
+		"tooltip": _("Tasks marked closed today"),
+		"value": current_closed,
+		"delta": delta,
 	}
 
 

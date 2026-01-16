@@ -73,6 +73,7 @@ class CRMLead(Document):
 		self.set_lead_name()
 		self.set_title()
 		self.validate_email()
+		self.validate_mobile_no_permissions()
 		if not self.is_new() and self.has_value_changed("lead_owner") and self.lead_owner:
 			self.share_with_agent(self.lead_owner)
 			self.assign_agent(self.lead_owner)
@@ -125,6 +126,18 @@ class CRMLead(Document):
 
 			if self.is_new() or not self.image:
 				self.image = has_gravatar(self.email)
+
+	def validate_mobile_no_permissions(self):
+		if self.is_new() or not self.has_value_changed("mobile_no"):
+			return
+
+		allowed_roles = {"Sales Manager", "Sales Master Manager"}
+		user_roles = set(frappe.get_roles(frappe.session.user))
+		if not user_roles.intersection(allowed_roles):
+			frappe.throw(
+				_("Only Sales Manager/Sales Master Manager can change the mobile number."),
+				exc=frappe.PermissionError,
+			)
 
 	def assign_agent(self, agent):
 		if not agent:
