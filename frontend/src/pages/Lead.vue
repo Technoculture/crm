@@ -35,7 +35,7 @@
         </div>
       </div>
       <Dropdown
-        v-if="doc && document.statuses"
+        v-if="doc && document.statuses && canChangeLeadStatus"
         :options="statuses"
         placement="right"
       >
@@ -51,6 +51,11 @@
           </Button>
         </template>
       </Dropdown>
+      <Button v-else-if="doc.status" :label="doc.status">
+        <template #prefix>
+          <IndicatorIcon :class="getLeadStatus(doc.status).color" />
+        </template>
+      </Button>
       <Button
         :label="__('Convert to Deal')"
         variant="solid"
@@ -337,6 +342,13 @@ const canEditMobileNo = computed(() => {
   const role = getUserRole(session.user)
   return ['Sales Manager', 'Sales Master Manager'].includes(role)
 })
+const canChangeLeadStatus = computed(() => {
+  const role = getUserRole(session.user)
+  if (isAdmin(session.user)) return true
+  if (['Sales Manager', 'Sales Master Manager'].includes(role)) return true
+
+  return role === 'Sales User' && doc.value?.owner === session.user
+})
 
 watch(error, (err) => {
   if (err) {
@@ -482,6 +494,14 @@ const sections = createResource({
 })
 
 async function triggerStatusChange(value) {
+  if (!canChangeLeadStatus.value) {
+    toast.error(
+      __(
+        'Only Sales Manager/Sales Master Manager can change this lead status unless you created the lead.',
+      ),
+    )
+    return
+  }
   await triggerOnChange('status', value)
   document.save.submit()
 }
