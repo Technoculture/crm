@@ -344,6 +344,9 @@ const canEditMobileNo = computed(() => {
 })
 const canChangeLeadStatus = computed(() => {
   const role = getUserRole(session.user)
+  const canWrite = permissions.data?.permissions?.write || false
+  if (!canWrite) return false
+
   if (isAdmin(session.user)) return true
   if (['Sales Manager', 'Sales Master Manager'].includes(role)) return true
 
@@ -495,10 +498,13 @@ const sections = createResource({
 
 async function triggerStatusChange(value) {
   if (!canChangeLeadStatus.value) {
+    const canWrite = permissions.data?.permissions?.write || false
     toast.error(
-      __(
-        'Only Sales Manager/Sales Master Manager can change this lead status unless you created the lead.',
-      ),
+      canWrite
+        ? __(
+            'Only Sales Manager/Sales Master Manager can change this lead status unless you are the lead owner.',
+          )
+        : __('You need write permission on this lead to change status.'),
     )
     return
   }
