@@ -347,7 +347,7 @@ const canChangeLeadStatus = computed(() => {
   if (isAdmin(session.user)) return true
   if (['Sales Manager', 'Sales Master Manager'].includes(role)) return true
 
-  return role === 'Sales User' && doc.value?.owner === session.user
+  return role === 'Sales User' && doc.value?.lead_owner === session.user
 })
 
 watch(error, (err) => {
